@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/sam99dave/amet-vlitos/issues"
   },
-  "homepage": "https://github.com/sam99dave/amet-vlitos#readme"
+  "homepage": "https://github.com/sam99dave/amet-vlitos#readme",
+  "dependencies": {
+    "sha256": "^0.2.0"
+  }
 }
