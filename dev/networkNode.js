@@ -21,9 +21,7 @@ app.get("/blockchain", (req, res) => {
 
 app.post("/transaction", (req, res) => {
   const newTransaction = req.body;
-  const blockIndex = bitcoin.addTransactionToPendingTransaction.push(
-    newTransaction
-  );
+  const blockIndex = bitcoin.addTransactionToPendingTransaction(newTransaction);
   res.json({ note: `Transaction will be added in block ${blockIndex}.` });
 });
 
@@ -66,11 +64,64 @@ app.get("/mine", (req, res) => {
     nonce
   );
 
-  bitcoin.createNewTransaction(12.5, "00", nodeAddress); // "00" indicates reward for mining
+  // "00" indicates reward for mining
 
   const newBlock = bitcoin.createNewBlock(nonce, previousBlockHash, blockHash);
 
-  res.json({ note: "New block mined successfully", block: newBlock });
+  const requestPromises = [];
+
+  bitcoin.networkNodes.forEach(networkNodeUrl => {
+    const requestOptions = {
+      uri: networkNodeUrl + "/receive-new-block",
+      method: "POST",
+      body: { newBlock: newBlock },
+      json: true
+    };
+
+    requestPromises.push(rp(requestOptions));
+  });
+  Promise.all(requestPromises)
+    .then(data => {
+      const requestOptions = {
+        uri: bitcoin.currentNodeUrl + "/transaction/broadcast",
+        method: "POST",
+        body: {
+          amount: 12.5,
+          sender: "00",
+          receiver: nodeAddress
+        },
+        json: true
+      };
+
+      return rp(requestOptions);
+    })
+    .then(data => {
+      res.json({
+        note: "New block mined & broadcasted successfully",
+        block: newBlock
+      });
+    });
+});
+
+app.post("/receive-new-block", (req, res) => {
+  const newBlock = req.body.newBlock;
+  const lastBlock = bitcoin.getLastBlock();
+  const correctHash = lastBlock.hash === newBlock.previousBlockHash;
+  const correctIndex = lastBlock["index"] + 1 === newBlock["index"];
+
+  if (correctHash && correctIndex) {
+    bitcoin.chain.push(newBlock);
+    bitcoin.pendingTransactions = [];
+    res.json({
+      note: "New block received and accepted.",
+      newBlock: newBlock
+    });
+  } else {
+    res.json({
+      note: "New block was rejected.",
+      newBlock: newBlock
+    });
+  }
 });
 
 // register a node and broadcast it the network
